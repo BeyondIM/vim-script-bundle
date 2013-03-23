@@ -109,20 +109,19 @@ endfunction
 " }}}2
 
 " crawlHtml {{{2
-function! s:script.crawlHtml()
+function! s:script.crawlHtml() abort
     let tmp1 = s:tmp . '/' . self.ID
     silent! execute '!curl ' . s:curlProxy . ' ' . s:vimSiteUrl . '/scripts/script.php?script_id=' . self.ID . ' > ' . tmp1
     " get script src_id, package name and version number
     let pageHtml = readfile(tmp1)
-    let idx = 0
+    let idx = -1
     for line in pageHtml
         if match(line, 'download_script.php?src_id=') != -1
             let idx = index(pageHtml, line)
             break
         endif
     endfor
-    if idx == 0
-        call s:EchoMsg("can't find download link.", 'error')
+    if idx == -1
         return
     endif
     let srcID = substitute(pageHtml[idx], '.*download_script.php?src_id=\(\d\+\).*', '\1', '')
@@ -137,9 +136,17 @@ endfunction
 " }}}2
 
 " installScript {{{2
-function! s:script.installScript()
+function! s:script.installScript() abort
     call self.crawlHtml()
+    if !exists('self.packageName')
+        call s:EchoMsg("can't find download link or can't download, please check whether you can access vim.org.", 'error')
+        return
+    endif
     call self.extractScript()
+    if empty(glob(self.rtp . '/*', 1))
+        call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
+        return
+    endif
     " update script info file
     let info = {'ID':self.ID, 'ver':self.ver}
     if !filereadable(s:scriptInfoFile)
@@ -168,7 +175,7 @@ endfunction
 " }}}2
 
 " extractScript {{{2
-function! s:script.extractScript()
+function! s:script.extractScript() abort
     call s:RmDir(self.rtp)
     call s:MkDir(self.rtp)
     " download script package file
@@ -216,8 +223,12 @@ endfunction
 " }}}2
 
 " updateScript {{{2
-function! s:script.updateScript()
+function! s:script.updateScript() abort
     call self.crawlHtml()
+    if !exists('self.rtp')
+        call s:EchoMsg("can't find download link or can't download, please check whether you can access vim.org.", 'error')
+        return
+    endif
     " update script info file
     let info = {'ID':self.ID, 'ver':self.ver}
     if !filereadable(s:scriptInfoFile)
@@ -234,19 +245,25 @@ function! s:script.updateScript()
     endfor
     if idx == -1
         call self.extractScript()
+        if empty(glob(self.rtp . '/*', 1))
+            call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
+            return
+        endif
     elseif self.ver > oldVer
         call remove(file, idx)
         call add(file, string(info))
         call writefile(file, s:scriptInfoFile)
         call self.extractScript()
-    else
-        return
+        if empty(glob(self.rtp . '/*', 1))
+            call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
+            return
+        endif
     endif
 endfunction
 " }}}2
 
 " uninstallScript {{{2
-function! s:script.uninstallScript()
+function! s:script.uninstallScript() abort
     if !filereadable(s:scriptInfoFile)
         call s:CreateScriptInfoFile()
     endif
@@ -274,6 +291,7 @@ endfunction
 " scriptbundle#Config {{{2
 function! scriptbundle#Config(ID,...)
     let script = s:script.new(a:ID)
+    " append custom keys
     if a:0 > 0 && type(a:1) == type({})
         let script = extend(script,a:1,'force')
     endif
