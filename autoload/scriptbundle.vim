@@ -2,7 +2,7 @@
 " Author: BeyondIM <lypdarling at gmail dot com>
 " HomePage: https://github.com/BeyondIM/vim-script-bundle
 " License: MIT license
-" Version: 0.2
+" Version: 0.3
 
 let s:save_cpo = &cpo
 set cpo&vim
@@ -51,8 +51,13 @@ function! s:InstallVimball(vimball,targetdir)
     silent! execute 'keepalt botright 1new'
     silent! execute 'edit ' . a:vimball
     silent! execute 'UseVimball ' . a:targetdir
-    silent! execute 'setlocal nobuflisted'
-    silent! execute 'wincmd q'
+    silent! execute 'bwipeout!'
+    for b in range(1, bufnr('$'))
+        if match(bufname(b), 'VimballRecord') != -1
+            silent! execute 'bwipeout! '.b
+        endif
+    endfor
+    silent! execute 'close!'
 endfunction
 " }}}2
 
@@ -61,8 +66,8 @@ function! s:CreateScriptInfoFile()
     silent! execute 'keepalt botright 1new'
     silent! execute 'edit ' . s:scriptInfoFile
     silent! execute 'write!'
-    silent! execute 'setlocal nobuflisted'
-    silent! execute 'wincmd q'
+    silent! execute 'bwipeout!'
+    silent! execute 'close!'
     if !filereadable(s:scriptInfoFile)
         call s:EchoMsg("can't read " . s:scriptInfoFile, 'error')
         return
@@ -289,10 +294,16 @@ endfunction
 " scriptbundle function {{{1
 
 " scriptbundle#Config {{{2
-function! scriptbundle#Config(ID,...)
+function! scriptbundle#Config(ID,...) abort
     let script = s:script.new(a:ID)
     " append custom keys
     if a:0 > 0 && type(a:1) == type({})
+        for key in keys(a:1)
+            if index(s:acceptedKeys, key) == -1
+                call s:EchoMsg("Vim script bundle: the key '". key . "' isn't accepted.", 'error')
+                return
+            endif
+        endfor
         let script = extend(script,a:1,'force')
     endif
     call s:RmAllRtp()
@@ -355,6 +366,7 @@ endfunction
 " scriptbundle#rc {{{2
 function! scriptbundle#rc(...) abort
     let g:scriptList = []
+    let s:acceptedKeys = ['subdir']
     let s:isWin = has('win32') || has('win64')
     let s:tmp = s:isWin ? $TEMP : '/tmp'
     if !exists('g:sevenZipPath')
@@ -368,13 +380,13 @@ function! scriptbundle#rc(...) abort
     else
         let s:vimSiteUrl = g:vimSiteReverseProxyServer
     endif
-    " set scoks5 proxy if need
+    " set proxy if need
     if !exists('g:curlProxy')
         let s:curlProxy = ''
     else
         let s:curlProxy = '-x ' . g:curlProxy
     endif
-    " set scripts folder
+    " set scripts directory
     let s:scriptsDir = a:0 > 0 ? expand(a:1, 1) : expand($HOME.'/.vim/scripts', 1)
     " set script info file path
     let s:scriptInfoFile = expand(s:scriptsDir . '/.scriptinfo', 1)
