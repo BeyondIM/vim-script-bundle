@@ -2,7 +2,7 @@
 " Author: BeyondIM <lypdarling at gmail dot com>
 " HomePage: https://github.com/BeyondIM/vim-script-bundle
 " License: MIT license
-" Version: 0.3
+" Version: 0.3a
 
 let s:save_cpo = &cpo
 set cpo&vim
@@ -132,10 +132,13 @@ function! s:script.crawlHtml() abort
     let srcID = substitute(pageHtml[idx], '.*download_script.php?src_id=\(\d\+\).*', '\1', '')
     let packageName = substitute(pageHtml[idx], '.*<a.*>\(.*\)</a>.*', '\1', '')
     let ver = substitute(pageHtml[idx+1], '.*<b>\(.*\)</b>.*', '\1', '')
+    let temp = filter(copy(pageHtml), "v:val =~ '<span class=\"txth1\">'")
+    let name = substitute(temp[0], '.*<span class="txth1">\(.*\) : .*</span>.*', '\1', '')
     " delete temporary file
     call delete(tmp1)
     let self.srcID = srcID
     let self.packageName = packageName
+    let self.name = name
     let self.ver = ver
 endfunction
 " }}}2
@@ -152,8 +155,10 @@ function! s:script.installScript() abort
         call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
         return
     endif
+    redraw
+    echo 'Installing ' . self.name . ' done'
     " update script info file
-    let info = {'ID':self.ID, 'ver':self.ver}
+    let info = {'ID':self.ID, 'name':self.name, 'ver':self.ver}
     if !filereadable(s:scriptInfoFile)
         call s:CreateScriptInfoFile()
     endif
@@ -184,31 +189,31 @@ function! s:script.extractScript() abort
     call s:RmDir(self.rtp)
     call s:MkDir(self.rtp)
     " download script package file
-    let tmp2 = s:tmp . '/' . self.packageName
-    silent! execute '!curl ' . s:curlProxy . ' ' . s:vimSiteUrl . '/scripts/download_script.php?src_id=' . self.srcID . ' > ' . tmp2
+    let tmp1 = s:tmp . '/' . self.packageName
+    silent! execute '!curl ' . s:curlProxy . ' ' . s:vimSiteUrl . '/scripts/download_script.php?src_id=' . self.srcID . ' > ' . tmp1
     " install script
     if match(self.packageName, '\(tar.gz\|tgz\|tar.bz2\|tbz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp2 . ' -o' . s:tmp . ' -aoa'
-        let tmp3 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(tar.gz\|tgz\|tar.bz2\|tbz2\)$', '\1', '') . '.tar'
-        silent! execute s:sevenZipPath . ' x ' . tmp3 . ' -ttar -o' . self.rtp . ' -aoa'
-        call delete(tmp3)
-    elseif match(self.packageName, '\(vba\|vmb\).\(gz\|bz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp2 . ' -o' . s:tmp . ' -aoa'
-        let tmp3 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(vba\|vmb\).\(gz\|bz2\)$', '\1.\2', '')
-        call s:InstallVimball(tmp3,self.rtp)
-        call delete(tmp3)
-    elseif match(self.packageName, '\(zip\|gz\|bz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp2 . ' -o' . self.rtp . ' -aoa'
-    elseif match(self.packageName, 'tar$') != -1
+        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . s:tmp . ' -aoa'
+        let tmp2 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(tar.gz\|tgz\|tar.bz2\|tbz2\)$', '\1', '') . '.tar'
         silent! execute s:sevenZipPath . ' x ' . tmp2 . ' -ttar -o' . self.rtp . ' -aoa'
-    elseif match(self.packageName, '\(vba\|vmb\)$') != -1
+        call delete(tmp2)
+    elseif match(self.packageName, '\(vba\|vmb\).\(gz\|bz2\)$') != -1
+        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . s:tmp . ' -aoa'
+        let tmp2 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(vba\|vmb\).\(gz\|bz2\)$', '\1.\2', '')
         call s:InstallVimball(tmp2,self.rtp)
+        call delete(tmp2)
+    elseif match(self.packageName, '\(zip\|gz\|bz2\)$') != -1
+        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . self.rtp . ' -aoa'
+    elseif match(self.packageName, 'tar$') != -1
+        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -ttar -o' . self.rtp . ' -aoa'
+    elseif match(self.packageName, '\(vba\|vmb\)$') != -1
+        call s:InstallVimball(tmp1,self.rtp)
     elseif match(self.packageName, 'vim$') != -1
         if exists('self.subdir')
             call s:MkDir(expand(self.rtp.'/'.self.subdir, 1))
-            call s:Move(tmp2, expand(self.rtp.'/'.self.subdir, 1))
+            call s:Move(tmp1, expand(self.rtp.'/'.self.subdir, 1))
         else
-            call s:Move(tmp2, self.rtp)
+            call s:Move(tmp1, self.rtp)
         endif
     endif
     " move extracted subdirectory as installDir
@@ -223,7 +228,7 @@ function! s:script.extractScript() abort
         endif
     endif
     " delete temporary files
-    call delete(tmp2)
+    call delete(tmp1)
 endfunction
 " }}}2
 
@@ -235,7 +240,7 @@ function! s:script.updateScript() abort
         return
     endif
     " update script info file
-    let info = {'ID':self.ID, 'ver':self.ver}
+    let info = {'ID':self.ID, 'name':self.name, 'ver':self.ver}
     if !filereadable(s:scriptInfoFile)
         call s:CreateScriptInfoFile()
     endif
@@ -254,6 +259,8 @@ function! s:script.updateScript() abort
             call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
             return
         endif
+        redraw
+        echo 'Installing ' . self.name . ' done'
     elseif self.ver > oldVer
         call remove(file, idx)
         call add(file, string(info))
@@ -263,6 +270,8 @@ function! s:script.updateScript() abort
             call s:EchoMsg("can't download or extract file error, please check whether you can access vim.org if 7zip works properly.", 'error')
             return
         endif
+        redraw
+        echo 'Upgrading ' . self.name . ' from ' . oldVer . ' to ' . self.ver . ' done'
     endif
 endfunction
 " }}}2
@@ -277,6 +286,7 @@ function! s:script.uninstallScript() abort
     for line in file
         if eval(line)['ID'] == self.ID
             let idx = index(file, line)
+            let name = eval(line)['name']
             break
         endif
     endfor
@@ -285,6 +295,11 @@ function! s:script.uninstallScript() abort
         call writefile(file, s:scriptInfoFile)
     endif
     call s:RmDir(self.rtp)
+    if exists('name')
+        redraw
+        echo 'Uninstalling ' . name . ' done'
+        silent! execute '2sleep'
+    endif
 endfunction
 " }}}2
 
@@ -309,7 +324,6 @@ function! scriptbundle#Config(ID,...) abort
     call s:RmAllRtp()
     call add(g:scriptList, script)
     call s:AddAllRtp()
-    return script
 endfunction
 " }}}2
 
@@ -346,15 +360,15 @@ function! scriptbundle#Clean()
         for script in g:scriptList
             let IDs = !exists('IDs') ? script.ID : IDs.'\|'.script.ID
         endfor
-        let IDs = '\('.IDs.'\)'
+        let IDs = '^\('.IDs.'\)$'
     endif
     let paths = glob(s:scriptsDir . '/*', 1) . "\n" . glob(s:scriptsDir . '/.[^.]*', 1)
     let pathList = split(paths, "\n")
     let dirList = map(copy(pathList), "substitute(v:val, '^.*[\\\\/]\\(.*\\)$', '\\1', '')")
     if len(g:scriptList) > 0
-        let _dirList = filter(dirList, "v:val !~ IDs && v:val =~ '\\d\\+'")
+        let _dirList = filter(dirList, "v:val !~ IDs && v:val =~ '^\\d\\+$'")
     else
-        let _dirList = filter(dirList, "v:val =~ '\\d\\+'")
+        let _dirList = filter(dirList, "v:val =~ '^\\d\\+$'")
     endif
     for ID in _dirList
         let _script = s:script.new(ID)
