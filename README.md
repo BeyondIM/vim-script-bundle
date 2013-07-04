@@ -22,7 +22,7 @@
     " let g:curlProxy = 'socks5://127.0.0.1:8888'
 
     " Some scripts require 7zip to extract.  
-    " let g:sevenZipPath = 'path_to_7z_execute_file'
+    " let g:extractApp = 'path_to_7z_execute_file'
 
     call scriptbundle#rc()  
     " mark - http://www.vim.org/scripts/script.php?script_id=2666  
@@ -39,6 +39,7 @@
     " ScriptInstall     - Install configured and non-installed scripts  
     " ScriptInstall!    - Reinstall all installed scripts  
     " ScriptUpdate      - Update all installed scripts
+    " ScriptClean       - Uninstall all unneeded scripts
     ```
 
 3. Install configured scripts

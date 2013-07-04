@@ -75,6 +75,12 @@ function! s:CreateScriptInfoFile()
 endfunction
 " }}}2
 
+" ShellESC {{{2
+function! s:ShellESC(str)
+    return '"' . a:str . '"'
+endfunction
+" }}}2
+
 " RmAllRtp {{{2
 function s:RmAllRtp()
     let paths = map(copy(g:scriptList), 'v:val.rtp')
@@ -116,7 +122,7 @@ endfunction
 " crawlHtml {{{2
 function! s:script.crawlHtml() abort
     let tmp1 = s:tmp . '/' . self.ID
-    silent! execute '!curl ' . s:curlProxy . ' ' . s:vimSiteUrl . '/scripts/script.php?script_id=' . self.ID . ' > ' . tmp1
+    silent! execute '!curl ' . s:curlProxy . ' ' . s:ShellESC(s:vimSiteUrl . '/scripts/script.php?script_id=' . self.ID) . ' -o ' . s:ShellESC(tmp1)
     " get script src_id, package name and version number
     let pageHtml = readfile(tmp1)
     let idx = -1
@@ -190,22 +196,22 @@ function! s:script.extractScript() abort
     call s:MkDir(self.rtp)
     " download script package file
     let tmp1 = s:tmp . '/' . self.packageName
-    silent! execute '!curl ' . s:curlProxy . ' ' . s:vimSiteUrl . '/scripts/download_script.php?src_id=' . self.srcID . ' > ' . tmp1
+    silent! execute '!curl ' . s:curlProxy . ' ' . s:ShellESC(s:vimSiteUrl . '/scripts/download_script.php?src_id=' . self.srcID) . ' -o ' . s:ShellESC(tmp1)
     " install script
     if match(self.packageName, '\(tar.gz\|tgz\|tar.bz2\|tbz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . s:tmp . ' -aoa'
+        silent! execute s:extractApp . ' x ' . s:ShellESC(tmp1) . ' -o' . s:ShellESC(s:tmp) . ' -aoa'
         let tmp2 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(tar.gz\|tgz\|tar.bz2\|tbz2\)$', '\1', '') . '.tar'
-        silent! execute s:sevenZipPath . ' x ' . tmp2 . ' -ttar -o' . self.rtp . ' -aoa'
+        silent! execute s:extractApp . ' x ' . s:ShellESC(tmp2) . ' -ttar -o' . s:ShellESC(self.rtp) . ' -aoa'
         call delete(tmp2)
     elseif match(self.packageName, '\(vba\|vmb\).\(gz\|bz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . s:tmp . ' -aoa'
+        silent! execute s:extractApp . ' x ' . s:ShellESC(tmp1) . ' -o' . s:ShellESC(s:tmp) . ' -aoa'
         let tmp2 = s:tmp . '/' . substitute(self.packageName,'^\(.*\).\(vba\|vmb\).\(gz\|bz2\)$', '\1.\2', '')
         call s:InstallVimball(tmp2,self.rtp)
         call delete(tmp2)
     elseif match(self.packageName, '\(zip\|gz\|bz2\)$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -o' . self.rtp . ' -aoa'
+        silent! execute s:extractApp . ' x ' . s:ShellESC(tmp1) . ' -o' . s:ShellESC(self.rtp) . ' -aoa'
     elseif match(self.packageName, 'tar$') != -1
-        silent! execute s:sevenZipPath . ' x ' . tmp1 . ' -ttar -o' . self.rtp . ' -aoa'
+        silent! execute s:extractApp . ' x ' . s:ShellESC(tmp1) . ' -ttar -o' . s:ShellESC(self.rtp) . ' -aoa'
     elseif match(self.packageName, '\(vba\|vmb\)$') != -1
         call s:InstallVimball(tmp1,self.rtp)
     elseif match(self.packageName, 'vim$') != -1
@@ -383,10 +389,17 @@ function! scriptbundle#rc(...) abort
     let s:acceptedKeys = ['subdir']
     let s:isWin = has('win32') || has('win64')
     let s:tmp = s:isWin ? $TEMP : '/tmp'
-    if !exists('g:sevenZipPath')
-        let s:sevenZipPath = '!7z'
+    if !exists('g:extractApp')
+        if executable('7z')
+            let s:extractApp = '!7z'
+        elseif s:isWin
+            let extractAppforWin = 'c:\Program Files\7-Zip\7z.exe'            
+            if executable(extractAppforWin)
+                let s:extractApp = '!' . s:ShellESC(extractAppforWin)
+            endif
+        endif
     else
-        let s:sevenZipPath = '!' . g:sevenZipPath
+        let s:extractApp = '!' . s:ShellESC(g:extractApp)
     endif
     " set vim.org reverse proxy server if need
     if !exists('g:vimSiteReverseProxyServer')
